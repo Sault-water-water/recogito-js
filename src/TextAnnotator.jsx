@@ -1,18 +1,17 @@
-import React, { Component } from 'react';
-import { Editor } from '@recogito/recogito-client-core';
-import Highlighter from './highlighter/Highlighter';
-import SelectionHandler from './selection/SelectionHandler';
-import RelationsLayer from './relations/RelationsLayer';
-import RelationEditor from './relations/editor/RelationEditor';
+import React, { Component } from "react";
+import { Editor } from "@recogito/recogito-client-core";
+import Highlighter from "./highlighter/Highlighter";
+import SelectionHandler from "./selection/SelectionHandler";
+import RelationsLayer from "./relations/RelationsLayer";
+import RelationEditor from "./relations/editor/RelationEditor";
 
-import './TextAnnotator.scss';
+import "./TextAnnotator.scss";
 
 /**
  * Pulls the strings between the annotation highlight layer
  * and the editor popup.
  */
 export default class TextAnnotator extends Component {
-
   constructor(props) {
     super(props);
 
@@ -28,7 +27,7 @@ export default class TextAnnotator extends Component {
 
       // Headless mode
       editorDisabled: this.props.config.disableEditor,
-    }
+    };
 
     this._editor = React.createRef();
   }
@@ -37,96 +36,131 @@ export default class TextAnnotator extends Component {
   clearState = () => {
     this.setState({
       selectedAnnotation: null,
-      selectedDOMElement: null
+      selectedDOMElement: null,
     });
 
     this.selectionHandler.enabled = true;
-  }
+  };
 
   handleEscape = (evt) => {
-    if (evt.which === 27)
-      this.onCancelAnnotation();
-  }
+    if (evt.which === 27) this.onCancelAnnotation();
+  };
 
   componentDidMount() {
-    this.highlighter = new Highlighter(this.props.contentEl, this.props.config.formatter);
+    this.highlighter = new Highlighter(
+      this.props.contentEl,
+      this.props.config.formatter
+    );
 
-    this.selectionHandler = new SelectionHandler(this.props.contentEl, this.highlighter, this.props.config.readOnly);
-    this.selectionHandler.on('select', this.handleSelect);
+    this.selectionHandler = new SelectionHandler(
+      this.props.contentEl,
+      this.highlighter,
+      this.props.config.readOnly
+    );
+    this.selectionHandler.on("select", this.handleSelect);
 
     this.relationsLayer = new RelationsLayer(this.props.contentEl);
 
-    this.relationsLayer.on('createRelation', this.onEditRelation);
-    this.relationsLayer.on('selectRelation', this.onEditRelation);
-    this.relationsLayer.on('cancelDrawing', this.closeRelationsEditor);
+    this.relationsLayer.on("createRelation", this.onEditRelation);
+    this.relationsLayer.on("selectRelation", this.onEditRelation);
+    this.relationsLayer.on("cancelDrawing", this.closeRelationsEditor);
 
-    document.addEventListener('keydown', this.handleEscape);
+    document.addEventListener("keydown", this.handleEscape);
   }
 
   componentWillUnmount() {
-    document.removeEventListener('keydown', this.handleEscape);
+    document.removeEventListener("keydown", this.handleEscape);
   }
 
   onChanged = () => {
-    // Disable selection outside of the editor 
+    // Disable selection outside of the editor
     // when user makes the first change
     this.selectionHandler.enabled = false;
-  }
+  };
 
   /**************************/
   /* Annotation CRUD events */
   /**************************/
 
   /** Selection on the text **/
-  handleSelect = evt => {
-    this.state.editorDisabled ?
-      this.onHeadlessSelect(evt) : this.onNormalSelect(evt);
-  }
+  handleSelect = (evt) => {
+    this.state.editorDisabled
+      ? this.onHeadlessSelect(evt)
+      : this.onNormalSelect(evt);
+  };
 
-  onNormalSelect = evt => {
+  onNormalSelect = (evt) => {
     const { selection, element } = evt;
     if (selection) {
-      this.setState({
-        selectedAnnotation: null,
-        selectedDOMElement: null
-      }, () => this.setState({
-        selectedAnnotation: selection,
-        selectedDOMElement: element
-      }));
+      this.setState(
+        {
+          selectedAnnotation: null,
+          selectedDOMElement: null,
+        },
+        () =>
+          this.setState({
+            selectedAnnotation: selection,
+            selectedDOMElement: element,
+          })
+      );
 
       if (!selection.isSelection)
         this.props.onAnnotationSelected(selection.clone(), element);
     } else {
       this.clearState();
     }
-  }
+  };
 
-  onHeadlessSelect = evt => {
+  /**
+   * 处理无头选择事件的方法
+   * @param {Object} evt - 事件对象，包含选择内容和DOM元素
+   * @param {Object} evt.selection - 选择的内容
+   * @param {HTMLElement} evt.element - 相关的DOM元素
+   */
+  onHeadlessSelect = (evt) => {
+    debugger
     const { selection, element } = evt;
     if (selection) {
-      this.setState({
-        selectedAnnotation: null,
-        selectedDOMElement: null
-      }, () => this.setState({
-        selectedAnnotation: selection,
-        selectedDOMElement: element
-      }));
+      // 首先清除当前选中的状态
+      this.setState(
+        {
+          selectedAnnotation: null,
+          selectedDOMElement: null,
+        },
+        () =>
+          this.setState({
+            // 然后设置新的选中状态
+            selectedAnnotation: selection,
+            selectedDOMElement: element,
+          })
+      );
 
       if (!selection.isSelection) {
-        // Selection of existing annotation
+        // 处理已存在注释的选择
+        // 克隆选中的注释并通知父组件
         this.props.onAnnotationSelected(selection.clone(), element);
       } else {
-        // Notify backend text selection to create a new annotation
-        const undraft = annotation =>
-        annotation.clone({
-          body : annotation.bodies.map(({ draft, ...rest }) => rest)
-        });
-        this.onCreateOrUpdateAnnotation('onAnnotationCreated')(undraft(selection).toAnnotation());
+        // 处理新文本选择，创建新注释
+        // 移除草稿状态并创建新注释
+        const undraft = (annotation) =>
+          annotation.clone({
+            body: annotation.bodies.map(({ draft, ...rest }) => rest),
+          });
+        // 调用创建或更新注释的回调
+        this.onCreateOrUpdateAnnotation("onAnnotationCreated")(
+          undraft(selection).toAnnotation()
+        );
       }
+
     } else {
+      // 如果没有选择内容，清除所有状态
       this.clearState();
     }
-  }
+
+    
+      // 触发 afterSelect 事件
+      this.props.onAfterSelect?.(selection, element);
+  };
 
   /**
    * A convenience method that allows the external application to
@@ -140,33 +174,39 @@ export default class TextAnnotator extends Component {
    * A key challenge here is that there may be dependencies between
    * the original annotation and relations that were created meanwhile.
    */
-  overrideAnnotationId = originalAnnotation => forcedId => {
+  overrideAnnotationId = (originalAnnotation) => (forcedId) => {
     const { id } = originalAnnotation;
 
     // After the annotation update, we need to update dependencies
     // on the annotation layer, if any
-    const updateDependentRelations = updatedAnnotation => {
+    const updateDependentRelations = (updatedAnnotation) => {
       // Wait until the highlighter update has come into effect
       requestAnimationFrame(() => {
-        this.relationsLayer.overrideTargetAnnotation(originalAnnotation, updatedAnnotation);
-      })
+        this.relationsLayer.overrideTargetAnnotation(
+          originalAnnotation,
+          updatedAnnotation
+        );
+      });
     };
 
     // Force the editors to close first, otherwise their annotations will be orphaned
     if (this.state.selectedAnnotation || this.state.selectedRelation) {
       this.relationsLayer.resetDrawing();
-      this.setState({
-        selectedAnnotation: null,
-        selectedRelation: null
-      }, () => {
-        const updated = this.highlighter.overrideId(id, forcedId);
-        updateDependentRelations(updated);
-      });
+      this.setState(
+        {
+          selectedAnnotation: null,
+          selectedRelation: null,
+        },
+        () => {
+          const updated = this.highlighter.overrideId(id, forcedId);
+          updateDependentRelations(updated);
+        }
+      );
     } else {
       const updated = this.highlighter.overrideId(id, forcedId);
       updateDependentRelations(updated);
     }
-  }
+  };
 
   /**
    * A convenience method that allows the external application to
@@ -177,30 +217,33 @@ export default class TextAnnotator extends Component {
    * the annotation doesn't become orphaned. Otherwise, there are
    * no dependencies.
    */
-  overrideRelationId = originalId => forcedId => {
+  overrideRelationId = (originalId) => (forcedId) => {
     if (this.state.selectedRelation) {
       this.setState({ selectedRelation: null }, () =>
-       this.relationsLayer.overrideRelationId(originalId, forcedId));
+        this.relationsLayer.overrideRelationId(originalId, forcedId)
+      );
     } else {
       this.relationsLayer.overrideRelationId(originalId, forcedId);
     }
-  }
+  };
 
   /** Common handler for annotation CREATE or UPDATE **/
-  onCreateOrUpdateAnnotation = method => (annotation, previous) => {
+  onCreateOrUpdateAnnotation = (method) => (annotation, previous) => {
     this.clearState();
 
     this.selectionHandler.clearSelection();
     this.highlighter.addOrUpdateAnnotation(annotation, previous);
 
     // Call CREATE or UPDATE handler
-    if (previous)
-      this.props[method](annotation.clone(), previous.clone());
+    if (previous) this.props[method](annotation.clone(), previous.clone());
     else
-      this.props[method](annotation.clone(), this.overrideAnnotationId(annotation));
-  }
+      this.props[method](
+        annotation.clone(),
+        this.overrideAnnotationId(annotation)
+      );
+  };
 
-  onDeleteAnnotation = annotation => {
+  onDeleteAnnotation = (annotation) => {
     // Delete connections
     this.relationsLayer.destroyConnectionsFor(annotation);
 
@@ -209,14 +252,14 @@ export default class TextAnnotator extends Component {
     this.highlighter.removeAnnotation(annotation);
 
     this.props.onAnnotationDeleted(annotation);
-  }
+  };
 
   /** Cancel button on annotation editor **/
-  onCancelAnnotation = annotation => {
+  onCancelAnnotation = (annotation) => {
     this.clearState();
     this.selectionHandler.clearSelection();
     this.props.onCancelSelected(annotation);
-  }
+  };
 
   /************************/
   /* Relation CRUD events */
@@ -226,17 +269,17 @@ export default class TextAnnotator extends Component {
   closeRelationsEditor = () => {
     this.setState({ selectedRelation: null });
     this.relationsLayer.resetDrawing();
-  }
+  };
 
   /**
    * Selection on the relations layer: open an existing
    * or newly created connection for editing.
    */
-  onEditRelation = relation => {
+  onEditRelation = (relation) => {
     this.setState({
-      selectedRelation: relation
+      selectedRelation: relation,
     });
-  }
+  };
 
   /** 'Ok' on the relation editor popup **/
   onCreateOrUpdateRelation = (relation, previous) => {
@@ -249,35 +292,39 @@ export default class TextAnnotator extends Component {
     const isNew = previous.annotation.bodies.length === 0;
 
     if (isNew)
-      this.props.onAnnotationCreated(relation.annotation.clone(), this.overrideRelationId(relation.annotation.id));
+      this.props.onAnnotationCreated(
+        relation.annotation.clone(),
+        this.overrideRelationId(relation.annotation.id)
+      );
     else
-      this.props.onAnnotationUpdated(relation.annotation.clone(), previous.annotation.clone());
-  }
+      this.props.onAnnotationUpdated(
+        relation.annotation.clone(),
+        previous.annotation.clone()
+      );
+  };
 
   /** 'Delete' on the relation editor popup **/
-  onDeleteRelation = relation => {
+  onDeleteRelation = (relation) => {
     this.relationsLayer.removeRelation(relation);
     this.closeRelationsEditor();
     this.props.onAnnotationDeleted(relation.annotation);
-  }
+  };
 
   /****************/
   /* External API */
   /****************/
 
-  addAnnotation = annotation => {
+  addAnnotation = (annotation) => {
     this.highlighter.addOrUpdateAnnotation(annotation.clone());
-  }
+  };
 
   get disableSelect() {
     return !this.selectionHandler.enabled;
   }
 
   set disableSelect(disable) {
-    if (disable)
-      this.props.contentEl.classList.add('r6o-noselect');
-    else
-      this.props.contentEl.classList.remove('r6o-noselect');
+    if (disable) this.props.contentEl.classList.add("r6o-noselect");
+    else this.props.contentEl.classList.remove("r6o-noselect");
 
     this.selectionHandler.enabled = !disable;
   }
@@ -285,52 +332,56 @@ export default class TextAnnotator extends Component {
   getAnnotations = () => {
     const annotations = this.highlighter.getAllAnnotations();
     const relations = this.relationsLayer.getAllRelations();
-    return annotations.concat(relations).map(a => a.clone());
-  }
+    return annotations.concat(relations).map((a) => a.clone());
+  };
 
-  removeAnnotation = annotation => {
+  removeAnnotation = (annotation) => {
     this.highlighter.removeAnnotation(annotation);
 
     // If the editor is currently open on this annotation, close it
     const { selectedAnnotation } = this.state;
     if (selectedAnnotation && annotation.isEqual(selectedAnnotation))
       this.clearState();
-  }
+  };
 
-  selectAnnotation = arg => {
+  selectAnnotation = (arg) => {
     // De-select in any case
-    this.setState({
-      selectedAnnotation: null,
-      selectedDOMElement: null
-    }, () => {
-      if (arg) {
-        const spans = this.highlighter.findAnnotationSpans(arg);
+    this.setState(
+      {
+        selectedAnnotation: null,
+        selectedDOMElement: null,
+      },
+      () => {
+        if (arg) {
+          const spans = this.highlighter.findAnnotationSpans(arg);
 
-        if (spans.length > 0) {
-          const selectedDOMElement = spans[0];
-          const selectedAnnotation = spans[0].annotation;
+          if (spans.length > 0) {
+            const selectedDOMElement = spans[0];
+            const selectedAnnotation = spans[0].annotation;
 
-          this.setState({
-            selectedAnnotation,
-            selectedDOMElement
-          });
+            this.setState({
+              selectedAnnotation,
+              selectedDOMElement,
+            });
+          }
         }
       }
-    });
-  }
+    );
+  };
 
-  setAnnotations = annotations => {
+  setAnnotations = (annotations) => {
     this.highlighter.clear();
     this.relationsLayer.clear();
 
-    const clones = annotations.map(a => a.clone());
+    const clones = annotations.map((a) => a.clone());
 
-    return this.highlighter.init(clones).then(() =>
-      this.relationsLayer.init(clones));
-  }
+    return this.highlighter
+      .init(clones)
+      .then(() => this.relationsLayer.init(clones));
+  };
 
-  setMode = mode => {
-    if (mode === 'RELATIONS') {
+  setMode = (mode) => {
+    if (mode === "RELATIONS") {
       this.clearState();
 
       this.selectionHandler.enabled = false;
@@ -345,7 +396,7 @@ export default class TextAnnotator extends Component {
       this.relationsLayer.readOnly = true;
       this.relationsLayer.stopDrawing();
     }
-  }
+  };
 
   get readOnly() {
     return this.state.readOnly;
@@ -374,43 +425,52 @@ export default class TextAnnotator extends Component {
   }
 
   render() {
-  	// The editor should open under normal conditions - annotation was selected, no headless mode
-    const open = (this.state.selectedAnnotation || this.state.selectedRelation) && !this.state.editorDisabled;
+    // The editor should open under normal conditions - annotation was selected, no headless mode
+    const open =
+      (this.state.selectedAnnotation || this.state.selectedRelation) &&
+      !this.state.editorDisabled;
 
-    const readOnly = this.state.readOnly || this.state.selectedAnnotation?.readOnly;
+    const readOnly =
+      this.state.readOnly || this.state.selectedAnnotation?.readOnly;
 
-    return (open && (
-      <>
-        { this.state.selectedAnnotation &&
-          <Editor
-            ref={this._editor}
-            autoPosition={this.props.config.editorAutoPosition}
-            wrapperEl={this.props.wrapperEl}
-            annotation={this.state.selectedAnnotation}
-            selectedElement={this.state.selectedDOMElement}
-            readOnly={readOnly}
-            allowEmpty={this.props.config.allowEmpty}
-            widgets={this.state.widgets}
-            env={this.props.env}
-            onChanged={this.onChanged}
-            onAnnotationCreated={this.onCreateOrUpdateAnnotation('onAnnotationCreated')}
-            onAnnotationUpdated={this.onCreateOrUpdateAnnotation('onAnnotationUpdated')}
-            onAnnotationDeleted={this.onDeleteAnnotation}
-            onCancel={this.onCancelAnnotation} />
-        }
+    return (
+      open && (
+        <>
+          {this.state.selectedAnnotation && (
+            <Editor
+              ref={this._editor}
+              autoPosition={this.props.config.editorAutoPosition}
+              wrapperEl={this.props.wrapperEl}
+              annotation={this.state.selectedAnnotation}
+              selectedElement={this.state.selectedDOMElement}
+              readOnly={readOnly}
+              allowEmpty={this.props.config.allowEmpty}
+              widgets={this.state.widgets}
+              env={this.props.env}
+              onChanged={this.onChanged}
+              onAnnotationCreated={this.onCreateOrUpdateAnnotation(
+                "onAnnotationCreated"
+              )}
+              onAnnotationUpdated={this.onCreateOrUpdateAnnotation(
+                "onAnnotationUpdated"
+              )}
+              onAnnotationDeleted={this.onDeleteAnnotation}
+              onCancel={this.onCancelAnnotation}
+            />
+          )}
 
-        { this.state.selectedRelation &&
-          <RelationEditor
-            relation={this.state.selectedRelation}
-            onRelationCreated={this.onCreateOrUpdateRelation}
-            onRelationUpdated={this.onCreateOrUpdateRelation}
-            onRelationDeleted={this.onDeleteRelation}
-            onCancel={this.closeRelationsEditor}
-            vocabulary={this.props.relationVocabulary}
-          />
-        }
-      </>
-    ));
+          {this.state.selectedRelation && (
+            <RelationEditor
+              relation={this.state.selectedRelation}
+              onRelationCreated={this.onCreateOrUpdateRelation}
+              onRelationUpdated={this.onCreateOrUpdateRelation}
+              onRelationDeleted={this.onDeleteRelation}
+              onCancel={this.closeRelationsEditor}
+              vocabulary={this.props.relationVocabulary}
+            />
+          )}
+        </>
+      )
+    );
   }
-
 }
